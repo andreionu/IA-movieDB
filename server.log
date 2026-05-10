@@ -1,0 +1,99 @@
+============================================================
+1. ALEGEREA SETULUI DE DATE DE PE KAGGLE
+============================================================
+Dataset: The Movies Dataset (Kaggle, Rounak Banik)
+Fisiere: movies_metadata.csv, credits.csv, keywords.csv,
+         ratings_small.csv, links_small.csv
+
+Se incarca fisierele...
+  movies_metadata : 45,466 randuri, 24 coloane
+  credits         : 45,476 randuri, 3 coloane
+  keywords        : 46,419 randuri, 2 coloane
+  ratings_small   : 100,004 randuri, 4 coloane
+  links_small     : 9,125 randuri, 3 coloane
+
+============================================================
+2. PREGATIREA DATELOR
+============================================================
+  Se parseaza genuri si metadate text...
+  Dupa join metadata+credits+keywords: 45,420 filme
+  Rating mediu TMDB : 5.62
+  Interval ani      : 1874 - 2020
+  Fara director     : 885 filme
+
+  Grafic salvat: 'static/charts/data_exploration.png'
+
+============================================================
+3. ALEGEREA ALGORITMULUI DE MACHINE LEARNING
+============================================================
+Algoritm: SVD (Singular Value Decomposition) — Matrix Factorization
+
+Justificare:
+  - ratings_small contine ~100k evaluari reale per utilizator
+  - SVD descompune matricea utilizator*film in vectori latenti care
+    captureaza preferinte implicite (genuri, stil, epoca etc.)
+  - Vectorii latenti ai filmelor permit similaritate item-item:
+    filme care atrag aceleasi tipuri de utilizatori sunt 'similare'
+  - Implementare: sklearn.decomposition.TruncatedSVD
+  - Validare: RMSE/MAE pe split 80/20 al rating-urilor
+
+============================================================
+4. ANTRENAREA MODELULUI
+============================================================
+  Rating-uri dupa mapare (movieId→tmdb→titlu): 99,810
+  Utilizatori unici : 671
+  Filme unice       : 9,025
+
+  Se construieste matricea user-item (userId x tmdbId)...
+  Dimensiune matrice: 671 utilizatori x 9025 filme
+
+  Se aplica TruncatedSVD (n_components=50) pe matrice normalizata...
+  Varianta explicata de 50 componente: 47.6%
+  Se calculeaza similaritatile item-item in spatiu latent...
+  SVD: top-50 recomandari precomputate pentru 9,025 filme
+
+  Se construieste modelul TF-IDF Content-Based (pentru comparatie)...
+  Se calculeaza similaritatile TF-IDF item-item...
+  TF-IDF: top-50 recomandari precomputate pentru 9,025 filme
+
+============================================================
+5. VALIDAREA MODELULUI
+============================================================
+Split 80% antrenare / 20% testare pe rating-urile mapate
+
+  Set antrenare : 79,848 ratinguri
+  Set testare   : 19,962 ratinguri
+  RMSE model SVD   : 0.9372
+  MAE  model SVD   : 0.7252
+  RMSE baseline    : 1.0460  (prezice mereu media = 3.54)
+  Imbunatatire     : 10.4% fata de baseline
+  Evaluari prezise : 19,223 din 19,962 (96.3%)
+
+  Se calculeaza Jaccard Similarity pentru SVD si TF-IDF...
+  Jaccard SVD    : 0.2358
+  Jaccard TF-IDF : 0.4582
+
+  Grafic salvat: 'static/charts/validation_results.png'
+
+============================================================
+6. UTILIZAREA MODELULUI PENTRU PREDICTII
+============================================================
+  Test get_similar_movies('Inception', n=5):
+    District 9 (2009) — sim: 0.626
+    In the Loop (2009) — sim: 0.607
+    In Bruges (2008) — sim: 0.585
+    The Prestige (2006) — sim: 0.569
+    Layer Cake (2004) — sim: 0.557
+
+  Test get_user_recommendations(1, n=5):
+    The Godfather (1972) — rating prezis: 2.61
+    The Empire Strikes Back (1980) — rating prezis: 2.59
+    The Silence of the Lambs (1991) — rating prezis: 2.59
+    Dumb and Dumber (1994) — rating prezis: 2.59
+    The Rocky Horror Picture Show (1975) — rating prezis: 2.59
+
+============================================================
+7. PREZENTAREA REZULTATELOR — Aplicatie Flask
+============================================================
+  RMSE model    : 0.9372
+  Fi

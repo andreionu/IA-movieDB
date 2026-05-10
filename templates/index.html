@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CineRec — Sistem de Recomandare Filme</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .hero { padding: 3rem 0 2.5rem; }
+    .hero h1 { font-size: 2rem; }
+
+    .stats-bar {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      font-size: .85rem;
+      color: #8b949e;
+      padding: .5rem 0;
+    }
+    .stats-bar span { margin-right: 1.5rem; }
+
+    .query-highlight { color: #58a6ff; }
+
+    .badge-sim {
+      background: #1f3d2e;
+      color: #3fb950;
+      border: 1px solid #2ea043;
+      border-radius: 20px;
+      font-size: .72rem;
+      padding: .15rem .55rem;
+    }
+
+    .search-box button {
+      background: #238636;
+      border: 1px solid #2ea043;
+    }
+    .search-box button:hover { background: #2ea043; }
+
+    .movie-card img, .no-poster { height: 210px; }
+  </style>
+</head>
+<body>
+
+<!-- Spinner overlay -->
+<div class="spinner-overlay" id="spinnerOverlay">
+  <div class="spinner-border text-primary" style="width:3rem;height:3rem" role="status"></div>
+  <p>Se caută recomandări...</p>
+</div>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark">
+  <div class="container">
+    <a class="navbar-brand text-decoration-none" href="/">🎬 CineRec</a>
+    <div class="d-flex gap-3 align-items-center">
+      <a href="/" class="nav-link active">Acasă</a>
+      <a href="/compare" class="nav-link">Comparație</a>
+      <a href="/methodology" class="nav-link">Metodologie</a>
+      <span class="badge-stat">RMSE {{ stats.rmse }}</span>
+      <span class="badge-stat">{{ stats.n_films }} filme</span>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero / Search -->
+<div class="hero">
+  <div class="container text-center">
+    <h1>Descoperă filme similare</h1>
+    <p class="mb-4">Algoritmul SVD găsește filme care atrag același tip de public</p>
+    <form action="/recommend" method="POST" id="searchForm">
+      <div class="search-box d-flex">
+        <input type="text" name="title" id="titleInput" list="titleSuggestions"
+               class="form-control"
+               placeholder="Ex: Inception, The Dark Knight, Titanic..."
+               value="{{ query }}" required autofocus autocomplete="off">
+        <datalist id="titleSuggestions"></datalist>
+        <button type="submit">Caută</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="container">
+    <span>Algoritm: <strong style="color:#e6edf3">TruncatedSVD</strong></span>
+    <span>Componente latente: <strong style="color:#e6edf3">50</strong></span>
+    <span>RMSE validare: <strong style="color:#3fb950">{{ stats.rmse }}</strong></span>
+    <span>Îmbunătățire: <strong style="color:#3fb950">+{{ stats.improvement }}%</strong></span>
+    <span>Filme indexate: <strong style="color:#e6edf3">{{ stats.n_films }}</strong></span>
+    <span>Jaccard SVD: <strong style="color:#3fb950">{{ stats.jaccard_svd }}</strong></span>
+  </div>
+</div>
+
+<!-- Main content -->
+<div class="container" style="min-height: 60vh;">
+
+  {% if error %}
+  <div class="alert-dark-custom mt-4">⚠️ {{ error }}</div>
+  {% endif %}
+
+  {% if recommendations %}
+  <div class="section-title">
+    Recomandări pentru <span class="query-highlight">"{{ query }}"</span>
+    <small class="ms-2" style="color:#6e7681; font-weight:400">— top {{ recommendations|length }} filme similare</small>
+  </div>
+
+  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-3">
+    {% for rec in recommendations %}
+    <div class="col">
+      <div class="movie-card">
+        {% if rec.poster_url %}
+          <img src="{{ rec.poster_url }}" alt="{{ rec.title }}"
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div class="no-poster" style="display:none">🎬</div>
+        {% else %}
+          <div class="no-poster">🎬</div>
+        {% endif %}
+        <div class="movie-body">
+          <div class="movie-title" title="{{ rec.title }}">{{ rec.title }}</div>
+          <div class="movie-meta">
+            {{ rec.year if rec.year else '—' }} &nbsp;·&nbsp; ⭐ {{ rec.vote_average if rec.vote_average else '—' }}
+          </div>
+          <div class="movie-genres">{{ rec.genres[:2] | join(' · ') if rec.genres else '—' }}</div>
+          <span class="badge-sim">sim {{ '%.3f' | format(rec.similarity) }}</span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% elif not error %}
+  <div class="text-center mt-5 pt-4" style="color:#6e7681">
+    <div style="font-size:3rem">🎞️</div>
+    <p class="mt-2">Introduceți un titlu de film pentru a vedea recomandări similare.</p>
+    <p style="font-size:.85rem">
+      Încearcă: <em>Inception</em>, <em>The Dark Knight</em>, <em>Interstellar</em>,
+      <em>The Godfather</em>, <em>Pulp Fiction</em>
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+
+<footer>
+  <div class="container">
+    <strong>CineRec</strong> — Proiect IA &nbsp;·&nbsp;
+    The Movies Dataset (Kaggle) &nbsp;·&nbsp;
+    SVD Matrix Factorization &nbsp;·&nbsp;
+    scikit-learn + Flask
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Loading spinner
+  document.getElementById('searchForm').addEventListener('submit', function () {
+    if (document.getElementById('titleInput').value.trim()) {
+      document.getElementById('spinnerOverlay').classList.add('active');
+    }
+  });
+
+  // Autocomplete
+  const titleInput = document.getElementById('titleInput');
+  const titleList  = document.getElementById('titleSuggestions');
+  let debounce;
+  titleInput.addEventListener('input', () => {
+    clearTimeout(debounce);
+    const q = titleInput.value.trim();
+    if (q.length < 2) { titleList.innerHTML = ''; return; }
+    debounce = setTimeout(() => {
+      fetch(`/api/titles?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(titles => {
+          titleList.innerHTML = titles.map(t => `<option value="${t}">`).join('');
+        });
+    }, 200);
+  });
+</script>
+</body>
+</html>

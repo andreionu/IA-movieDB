@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comparație Algoritmi — CineRec</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .hero { padding: 2.5rem 0 2rem; }
+    .hero h1 { font-size: 1.9rem; }
+
+    .search-box button {
+      background: #1f6feb;
+      border: 1px solid #388bfd;
+    }
+    .search-box button:hover { background: #388bfd; }
+
+    /* Smaller posters for side-by-side layout */
+    .movie-card img, .no-poster { height: 180px; }
+    .movie-body { padding: .65rem; }
+    .movie-title { font-size: .85rem; }
+    .movie-meta  { font-size: .75rem; }
+    .movie-genres { font-size: .72rem; }
+
+    .col-header {
+      padding: .7rem 1rem;
+      border-radius: 8px 8px 0 0;
+      font-weight: 700;
+      font-size: .95rem;
+      text-align: center;
+    }
+    .col-svd   { background: #1f3d2e; color: #3fb950; border: 1px solid #2ea043; }
+    .col-tfidf { background: #1a2e42; color: #58a6ff; border: 1px solid #1f6feb; }
+
+    .badge-sim-svd {
+      background: #1f3d2e; color: #3fb950;
+      border: 1px solid #2ea043;
+      border-radius: 20px; font-size: .7rem; padding: .12rem .5rem;
+    }
+    .badge-sim-cb {
+      background: #1a2e42; color: #58a6ff;
+      border: 1px solid #1f6feb;
+      border-radius: 20px; font-size: .7rem; padding: .12rem .5rem;
+    }
+
+    .metrics-table { background: #161b22; border: 1px solid #30363d; border-radius: 10px; overflow: hidden; }
+    .metrics-table table { margin-bottom: 0; color: #e6edf3; }
+    .metrics-table th { background: #21262d; color: #8b949e; font-size: .82rem; border-color: #30363d; }
+    .metrics-table td { border-color: #30363d; font-size: .85rem; }
+    .val-good { color: #3fb950; font-weight: 700; }
+    .val-blue { color: #58a6ff; font-weight: 700; }
+    .val-dim  { color: #8b949e; }
+  </style>
+</head>
+<body>
+
+<!-- Spinner overlay -->
+<div class="spinner-overlay" id="spinnerOverlay">
+  <div class="spinner-border text-primary" style="width:3rem;height:3rem" role="status"></div>
+  <p>Se compară algoritmii...</p>
+</div>
+
+<nav class="navbar navbar-dark">
+  <div class="container">
+    <a class="navbar-brand text-decoration-none" href="/">🎬 CineRec</a>
+    <div class="d-flex gap-3 align-items-center">
+      <a href="/" class="nav-link">Acasă</a>
+      <a href="/compare" class="nav-link active">Comparație</a>
+      <a href="/methodology" class="nav-link">Metodologie</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero / Search -->
+<div class="hero">
+  <div class="container text-center">
+    <h1>Comparație Algoritmi</h1>
+    <p class="mb-4">SVD (Collaborative Filtering) față în față cu TF-IDF (Content-Based)</p>
+    <form action="/compare" method="POST" id="compareForm">
+      <div class="search-box d-flex">
+        <input type="text" name="title" id="titleInput" list="titleSuggestions"
+               class="form-control"
+               placeholder="Ex: Inception, The Dark Knight, Titanic..."
+               value="{{ title }}" required autofocus autocomplete="off">
+        <datalist id="titleSuggestions"></datalist>
+        <button type="submit">Compară</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="container" style="min-height: 60vh;">
+
+  <!-- Metrici comparative -->
+  <div class="section-title">Metrici comparative</div>
+  <div class="metrics-table mb-4">
+    <table class="table table-dark table-sm mb-0">
+      <thead>
+        <tr>
+          <th>Metrică</th>
+          <th class="text-center" style="color:#3fb950">SVD (Collaborative)</th>
+          <th class="text-center" style="color:#58a6ff">TF-IDF (Content-Based)</th>
+          <th>Interpretare</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>RMSE predicție rating</td>
+          <td class="text-center"><span class="val-good">{{ stats.rmse }}</span></td>
+          <td class="text-center"><span class="val-dim">N/A</span></td>
+          <td class="val-dim" style="font-size:.8rem">SVD prezice ratinguri; TF-IDF nu</td>
+        </tr>
+        <tr>
+          <td>MAE predicție rating</td>
+          <td class="text-center"><span class="val-good">{{ stats.mae }}</span></td>
+          <td class="text-center"><span class="val-dim">N/A</span></td>
+          <td class="val-dim" style="font-size:.8rem">Mai mic = mai precis</td>
+        </tr>
+        <tr>
+          <td>RMSE Baseline (media globală)</td>
+          <td class="text-center" style="color:#f85149; font-weight:700">{{ stats.rmse_baseline }}</td>
+          <td class="text-center"><span class="val-dim">—</span></td>
+          <td class="val-dim" style="font-size:.8rem">SVD depășește baseline cu +{{ stats.improvement }}%</td>
+        </tr>
+        <tr>
+          <td>Jaccard Similarity (genuri)</td>
+          <td class="text-center"><span class="val-good">{{ stats.jaccard_svd }}</span></td>
+          <td class="text-center"><span class="val-blue">{{ stats.jaccard_cb }}</span></td>
+          <td class="val-dim" style="font-size:.8rem">Coerența recomandărilor față de filmul căutat</td>
+        </tr>
+        <tr>
+          <td>Sursa informației</td>
+          <td class="text-center"><span class="val-dim" style="font-size:.82rem">Rating-uri utilizatori</span></td>
+          <td class="text-center"><span class="val-dim" style="font-size:.82rem">Genuri, cuvinte cheie, regizor</span></td>
+          <td class="val-dim" style="font-size:.8rem">Abordări complementare</td>
+        </tr>
+        <tr>
+          <td>Problema cold-start</td>
+          <td class="text-center" style="color:#f85149; font-size:.82rem">Afectat (filme noi fără rating)</td>
+          <td class="text-center" style="color:#3fb950; font-size:.82rem">Rezistă (nu necesită rating-uri)</td>
+          <td class="val-dim" style="font-size:.8rem">Avantajul TF-IDF pentru filme noi</td>
+        </tr>
+        <tr>
+          <td>Componente / parametri</td>
+          <td class="text-center"><span class="val-good">{{ stats.n_components }} componente SVD</span></td>
+          <td class="text-center"><span class="val-blue">10,000 features TF-IDF</span></td>
+          <td class="val-dim" style="font-size:.8rem">Varianță explicată: {{ stats.var_explained }}%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  {% if error %}
+  <div class="alert-dark-custom mt-3">⚠️ {{ error }}</div>
+  {% endif %}
+
+  {% if svd_recs or cb_recs %}
+  <div class="section-title">
+    Recomandări pentru <span style="color:#58a6ff">"{{ title }}"</span>
+  </div>
+  <div class="row g-4">
+
+    <!-- SVD column -->
+    <div class="col-12 col-lg-6">
+      <div class="col-header col-svd mb-3">
+        🧮 SVD — Collaborative Filtering
+        <div style="font-size:.75rem; font-weight:400; opacity:.85; margin-top:.15rem">
+          Bazat pe preferințele utilizatorilor (rating-uri)
+        </div>
+      </div>
+      {% if svd_recs %}
+      <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-2 row-cols-xl-4 g-2">
+        {% for rec in svd_recs %}
+        <div class="col">
+          <div class="movie-card">
+            {% if rec.poster_url %}
+              <img src="{{ rec.poster_url }}" alt="{{ rec.title }}"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="no-poster" style="display:none">🎬</div>
+            {% else %}
+              <div class="no-poster">🎬</div>
+            {% endif %}
+            <div class="movie-body">
+              <div class="movie-title" title="{{ rec.title }}">{{ rec.title }}</div>
+              <div class="movie-meta">
+                {{ rec.year if rec.year else '—' }} &nbsp;·&nbsp; ⭐ {{ rec.vote_average if rec.vote_average else '—' }}
+              </div>
+              <div class="movie-genres">{{ rec.genres[:2] | join(' · ') if rec.genres else '—' }}</div>
+              <span class="badge-sim-svd">sim {{ '%.3f' | format(rec.similarity) }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:#6e7681; font-size:.88rem">Niciun rezultat SVD.</p>
+      {% endif %}
+    </div>
+
+    <!-- TF-IDF column -->
+    <div class="col-12 col-lg-6">
+      <div class="col-header col-tfidf mb-3">
+        📝 TF-IDF — Content-Based
+        <div style="font-size:.75rem; font-weight:400; opacity:.85; margin-top:.15rem">
+          Bazat pe conținut (genuri, cuvinte cheie, regizor)
+        </div>
+      </div>
+      {% if cb_recs %}
+      <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-2 row-cols-xl-4 g-2">
+        {% for rec in cb_recs %}
+        <div class="col">
+          <div class="movie-card">
+            {% if rec.poster_url %}
+              <img src="{{ rec.poster_url }}" alt="{{ rec.title }}"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="no-poster" style="display:none">🎬</div>
+            {% else %}
+              <div class="no-poster">🎬</div>
+            {% endif %}
+            <div class="movie-body">
+              <div class="movie-title" title="{{ rec.title }}">{{ rec.title }}</div>
+              <div class="movie-meta">
+                {{ rec.year if rec.year else '—' }} &nbsp;·&nbsp; ⭐ {{ rec.vote_average if rec.vote_average else '—' }}
+              </div>
+              <div class="movie-genres">{{ rec.genres[:2] | join(' · ') if rec.genres else '—' }}</div>
+              <span class="badge-sim-cb">sim {{ '%.3f' | format(rec.similarity) }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:#6e7681; font-size:.88rem">Niciun rezultat TF-IDF.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  {% elif not error %}
+  <div class="text-center mt-5 pt-3" style="color:#6e7681">
+    <div style="font-size:3rem">⚖️</div>
+    <p class="mt-2">Introduceți un titlu pentru a vedea diferența dintre cei doi algoritmi.</p>
+    <p style="font-size:.85rem">Încearcă: <em>Inception</em>, <em>The Dark Knight</em>, <em>The Godfather</em></p>
+  </div>
+  {% endif %}
+
+</div>
+
+<footer>
+  <div class="container">
+    <strong>CineRec</strong> — Proiect IA &nbsp;·&nbsp;
+    SVD Matrix Factorization vs. TF-IDF Content-Based &nbsp;·&nbsp;
+    scikit-learn + Flask
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Loading spinner
+  document.getElementById('compareForm').addEventListener('submit', function () {
+    if (document.getElementById('titleInput').value.trim()) {
+      document.getElementById('spinnerOverlay').classList.add('active');
+    }
+  });
+
+  // Autocomplete
+  const titleInput = document.getElementById('titleInput');
+  const titleList  = document.getElementById('titleSuggestions');
+  let debounce;
+  titleInput.addEventListener('input', () => {
+    clearTimeout(debounce);
+    const q = titleInput.value.trim();
+    if (q.length < 2) { titleList.innerHTML = ''; return; }
+    debounce = setTimeout(() => {
+      fetch(`/api/titles?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(titles => {
+          titleList.innerHTML = titles.map(t => `<option value="${t}">`).join('');
+        });
+    }, 200);
+  });
+</script>
+</body>
+</html>
