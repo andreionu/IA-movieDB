@@ -31,7 +31,7 @@ python main.py
 > Daca `python` nu e recunoscut, foloseste `python3` in loc.
 
 Prima rulare dureaza ~2-3 minute (antrenare SVD + TF-IDF + precomputare similaritati).
-Restartat rapid deoarece posterele sunt cache-uite local in `static/posters/`.
+Restart rapid deoarece posterele sunt cache-uite local in `static/posters/`.
 
 ## Instalare dependente
 
